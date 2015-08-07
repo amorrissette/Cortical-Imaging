@@ -27,11 +27,12 @@ avgVSFP = zeros(totalDiv, totalDiv, d3);
 tic
 i = 1;
 figure
+
 for x = 1:totalDiv
     for y = 1:totalDiv
         avgVSFP(x,y,1:d3) = mean(mean(vsfp_data(numDiv*(x-1)+1:(numDiv*x),numDiv*(y-1)+1:(numDiv*y),:)));
         subplot(totalDiv, totalDiv, i);
-        plot(squeeze(avgVSFP(x,y,1200:1500)));
+        plot(squeeze(avgVSFP(x,y,600:1000)));
         axis off
         i = i+1;
     end

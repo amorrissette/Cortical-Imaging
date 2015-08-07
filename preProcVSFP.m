@@ -8,11 +8,22 @@ function [imgs, time] = preProcVSFP(fDate, fNum)
 
 %% Doing initial loading and stuff
 % cd /Volumes/PC_MAC/DJlab/vsfp_imaging/VSFP_713_2015/
-imgD = readCMOS6(['VSFP_01A0' num2str(fDate) '-' num2str(fNum) '_A.rsh']);
-imgA = readCMOS6(['VSFP_01A0' num2str(fDate) '-' num2str(fNum) '_B.rsh']);
+imgD = readCMOS6(['VSFP_01A0' num2str(fDate) '-' fNum '_A.rsh']);
+imgA = readCMOS6(['VSFP_01A0' num2str(fDate) '-' (fNum) '_B.rsh']);
 % cd /Users/AMmacbookpro/GitHub/Cortical-Imaging/
 % Start timer
 tic 
+
+% Dimensions of the loaded files?
+if isequal(size(imgD),size(imgA)) == 1
+    [sX, sY, sZ] = size(imgD); 
+else
+    error('Donor and Acceptor Files must be the same size')
+end
+
+% Reshape data into 2-dimensions for quicker processing
+imgD2d = reshape(imgD,[sX*sY,sZ]);
+imgA2d = reshape(imgA,[sX*sY,sZ]);
 
 % How many frames are in each sequence (for me usually 2048)
 [~,~,numFrames] = size(imgA);
@@ -33,7 +44,8 @@ FsImg = 200;
 
 % Calculate standard deviations of Acceptor and Donor channels 
 hemfilter = make_ChebII_filter(1, FsImg, [10 15], [10*0.9 15*1.1], 20);
-myfilter1 = make_ChebII_filter(2, FsImg, 50, 55, 20);
+myfilter1 = make_ChebII_filter(2, FsImg, 80, 80*1.1, 20);
+specfilter = make_ChebII_filter(3, FsImg, 1, 1*0.9, 20);
 % Preallocate for speed :)
 imgAhem = ones(100,100,numFrames);
 imgDhem = ones(100,100,numFrames);
@@ -50,6 +62,7 @@ avgDiv = ones(100,100);
 imgDivDemean = ones(100,100,numFrames);
 imgDivDetrend =  ones(100,100,numFrames);
 imgDivFilt = ones(100,100,numFrames);
+imgPreDivFilt = ones(100,100,numFrames);
 imgDR = ones(100,100,numFrames);
 af0 = ones(100,100);
 df0 = ones(100,100);
@@ -59,11 +72,14 @@ imgDf = ones(100,100,numFrames);
 imgDivNorm = ones(100,100,numFrames);
 avgAf = ones(100,100);
 avgDf = ones(100,100);
+EPdiff = ones(100,100);
 imgDiffA = ones(100,100,numFrames);
 imgDiffD = ones(100,100,numFrames);
-i = 0;
+imgSpecFilt = ones(100,100,numFrames);
+
+% i = 0;
 % figure, hold on
-progbar = waitbar(0, 'Processing Images...');
+% progbar = waitbar(0, 'Processing Images...');
 
 %% First perform operations outside of cycle:
 
@@ -78,17 +94,18 @@ imgAf = imgA.*(100/af0);
 df0 = mean2(imgD(:,:,1:50));
 imgDf = imgD.*(100/df0);
 %     imgDf(x,y,:) = ((imgD(x,y,:)) - df0(x,y))./df0(x,y);
-        
+imgPreDiv = imgAf./imgDf;        
+
 % Averages of baseline VSFP recordings--first 200 frames (1sec) of data
 avgAf = mean(imgAf(1:100,1:100,1:avgingFr),3);
 avgDf = mean(imgDf(1:100,1:100,1:avgingFr),3);
 
-%% Cycle through each pixel (100 x 100 window)
+%% Cycle through each pixel (100 x 100 window) *This is slow! - remove in future versions*
 for x = 1:100
     for y = 1:100;
-        i = i+1;
-waitbar(i/(10000), progbar);
-% Status 
+%         i = i+1;
+% waitbar(i/(10000), progbar);
+% % Status 
 if x == 50 && y == 50
     disp('halway there...')
     toc
@@ -98,10 +115,12 @@ end
         imgAhem(x,y,:) = filtfilt(hemfilter.numer, hemfilter.denom,imgAf(x,y,:));
         imgDhem(x,y,:) = filtfilt(hemfilter.numer, hemfilter.denom,imgDf(x,y,:));
         
-%         if x == 50 && y == 50
-%         [Pxx, freq] = pwelch(squeeze(imgAhem(x,y,:)), [],[],2^12,200);
-%         figure, plot(freq, Pxx);
-%         end
+% if x == 30 && y == 55
+%         [Pxx, freq] = pwelch(squeeze(imgPreDiv(x,y,:)), [],[],2^12,200);
+%         figure, plot(freq, log(Pxx));
+%         
+%         pause(2)
+% end
 
 % Standard deviation of filtered signal   
          stdA(x,y) = std(squeeze(imgAhem(x,y,:)));
@@ -129,10 +148,12 @@ end
         imgDiv(x,y,:) = imgAe(x,y,:) ./ imgDe(x,y,:);
         avgDiv(x,y) = avgDe(x,y) ./ avgAe(x,y);          
         imgDR(x,y,:) = (squeeze(imgDiv(x,y,:)) .* avgDiv(x,y))-1;
+        EPdiff(x,y) = abs(imgDiv(x,y,1000)-imgDiv(x,y,1015));
         
-%         if x == 50 && y == 50
+%         if x == 30 && y == 55
 %             [Pxx, freq] = pwelch(squeeze(imgDR(x,y,:)), [],[],2^12,200);
 %             figure, plot(freq, log(Pxx));
+%             pause(2)
 %         end
         
 %         if x == y
@@ -148,12 +169,16 @@ end
 %         imgDivMax(x,y) = max(squeeze(imgDivDetrend(x,y,:)));
 %         imgDivNorm(x,y,:) = squeeze(imgDivDetrend(x,y,:))./imgDivMax(x,y);
         
-% Low-pass filter (shoudl be 50 and 70)
+% Low-pass filter (should be 50 and 70)
          imgDivFilt(x,y,:) = filtfilt(myfilter1.numer, myfilter1.denom,squeeze(imgDivDetrend(x,y,:)));
-        
+         imgDivFilt(x,y,:) = filtfilt(myfilter1.numer, myfilter1.denom,squeeze(imgDivDetrend(x,y,:)));
+
+% Filter for Spectrogram (bandpass from 2Hz to 40Hz)
+%         imgSpecFilt(x,y,:) = filtfilt(specfilter.numer, specfilter.denom, squeeze(imgDivDetrend(x,y,:)));
+%         imgPreDivFilt(x,y,:) = filtfilt(myfilter1.numer, myfilter1.denom, squeeze(imgPreDiv(x,y,:)));
     end
 end
-waitbar(1, progbar, 'Image Processing Done!');
+% waitbar(1, progbar, 'Image Processing Done!');
 %% Calculate ROI based on presence of hemodynamic signals
 clear i
 imgROI = ones(100,100);
@@ -196,6 +221,10 @@ imgs.af0 = af0;
 imgs.df0 = df0; 
 imgs.avgingFr = avgingFr;
 imgs.imgROI = imgROI;
-close(progbar);
+imgs.imgSpecFilt = imgSpecFilt;
+imgs.imgPreDivFilt = imgPreDivFilt;
+imgs.imgPreDiv = imgPreDiv;
+imgs.EPdiff = EPdiff;
+% close(progbar);
 
 toc

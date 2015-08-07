@@ -28,12 +28,12 @@ vsfp_unit8 = uint8(vsfp_scaled);
 
 for i = 1:z
 
-    data = vsfp_data(45:85,30:70,i);
+    data = vsfp_data(1:100,1:100,i);
     figHandle = figure('Visible','off'); hold on;
     %figHandle = figure; hold on;
     rgbImage = data / max(max(data));
-    imshow(data,'InitialMagnification', 100,'Border','tight');
-%     colormap(figHandle,parula);
+    imshow(rgbImage,'InitialMagnification', 100,'Border','tight');
+    colormap(figHandle,parula);
     axis off;
     hold on
     
