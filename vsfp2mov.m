@@ -1,4 +1,4 @@
-function vsfp2mov(vsfp_data,ROI)
+function vsfp2mov(vsfp_data)
 
 % Writes 3-D VSFP matrix to single temp image files, transfers those files to a
 % movie (.avi) and erases temp image files to save space
@@ -8,27 +8,29 @@ function vsfp2mov(vsfp_data,ROI)
 %
 
 close all
-
-[z] = size(vsfp_data,3);
-vsfp_roi = zeros(100,100,z);
-for n = 1:z
-    vsfp_roi(1:100,1:100,n) = vsfp_data(1:100,1:100,n).*ROI;
-end
+region = roiSelect(713,230);
+z = size(vsfp_data,3);
+%vsfp_data = spatialAvg(vsfp_data,3);
+% vsfp_roi = zeros(100,100,z);
+% for n = 1:z
+%      vsfp_roi(1:100,1:100,n) = vsfp_data(1:100,1:100,n).*ROI;
+% end
 mkdir('tmpDir1');
-[~,Imin] = min(vsfp_roi(:));
-[I1,I2,I3] = ind2sub(size(vsfp_roi),Imin);
-minVal = vsfp_roi(I1,I2,I3);
-vsfp_non_zero = vsfp_data+(-1*minVal);
-[~,Imax] = max(vsfp_roi(:));
-[I1,I2,I3] = ind2sub(size(vsfp_roi),Imax);
-maxVal = vsfp_roi(I1,I2,I3);
-sF = 255/maxVal;
-vsfp_scaled = vsfp_non_zero.*sF;
-vsfp_unit8 = uint8(vsfp_scaled);
+% [~,Imin] = min(vsfp_roi(:));
+% [I1,I2,I3] = ind2sub(size(vsfp_roi),Imin);
+% minVal = vsfp_roi(I1,I2,I3);
+% vsfp_non_zero = vsfp_data+(-1*minVal);
+% [~,Imax] = max(vsfp_roi(:));
+% [I1,I2,I3] = ind2sub(size(vsfp_roi),Imax);
+% maxVal = vsfp_roi(I1,I2,I3);
+% sF = 255/maxVal;
+% vsfp_scaled = vsfp_non_zero.*sF;
+% vsfp_unit8 = uint8(vsfp_scaled);
 
 for i = 1:z
 
-    data = vsfp_data(1:100,1:100,i);
+    data = vsfp_data(region(3):region(4),region(1):region(2),i);
+    data_roi = vsfp_data(region(3):region(4),region(1):region(2),i);
     figHandle = figure('Visible','off'); hold on;
     %figHandle = figure; hold on;
     rgbImage = data / max(max(data));

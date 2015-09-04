@@ -10,6 +10,9 @@ function out = powerPlot(vsfp_data)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%% ROI selection
+% region = roiSelect(
+
 %% Specify frequency bands 
 
 band.betaLow = [15, 25];
@@ -36,9 +39,13 @@ bandNames = fieldnames(band);
 for n = 1:numBands
     X = bandpower(vsfpRe', fs, band.(bandNames{n}));
     Xre = reshape(X,[x,y]);
-	band.([bandNames{n} '_power']) = Xre;
-    figure, imagesc(band.([bandNames{n} '_power']))
-    title(bandNames{n});
+    Xfilt = spatialAvg(Xre,3);
+    [X,Y] = find(Xre == max(max(Xfilt)));
+    
+	band.([bandNames{n} '_power']) = Xfilt;
+    %figure, hold on, axis off, imagesc(band.([bandNames{n} '_power'])), plot(Y,X,'o')
+    
+    %title(bandNames{n});
 end
 
 out = band;

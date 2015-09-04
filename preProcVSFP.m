@@ -7,10 +7,13 @@ function [imgs, time] = preProcVSFP(fDate, fNum)
 %
 
 %% Doing initial loading and stuff
-% cd /Volumes/PC_MAC/DJlab/vsfp_imaging/VSFP_713_2015/
-imgD = readCMOS6(['VSFP_01A0' num2str(fDate) '-' fNum '_A.rsh']);
-imgA = readCMOS6(['VSFP_01A0' num2str(fDate) '-' (fNum) '_B.rsh']);
-% cd /Users/AMmacbookpro/GitHub/Cortical-Imaging/
+fStr = num2str(fNum);
+if length(fStr) < 3
+    fStr = ['0' fStr];
+end 
+imgD = readCMOS6(['VSFP_01A0' num2str(fDate) '-' fStr '_A.rsh']);
+imgA = readCMOS6(['VSFP_01A0' num2str(fDate) '-' fStr '_B.rsh']);
+
 % Start timer
 tic 
 

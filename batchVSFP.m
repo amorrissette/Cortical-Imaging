@@ -9,7 +9,7 @@ function [out,outFilt,outROI,imagefilt,time,imgs] = batchVSFP(day,files)
 % fileNames must be 
 %
 % Options for proc
-%   'avg' = average of (hopefully preprocessed image files
+%   'avg' = average of (hopefully preprocessed) image files
 %   'div' = division of image files (not implemented) yet...
 %   'pre' = preprocess included image files
 %   'post' = post-process image files (detrending/demean)

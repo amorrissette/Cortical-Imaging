@@ -1,4 +1,4 @@
-function region = roiSelect(date, file);
+function region = roiSelect(date, file)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -13,10 +13,12 @@ function region = roiSelect(date, file);
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+close all
 
 % Open the .rsm file associated with the VSFP data file, reshape, and crop
-path = ['/Volumes/PC_MAC/DJlab/vsfp_imaging/VSFP_' num2str(date) '_2015/VSFP_01A0' num2str(date) ...
+path = ['/Volumes/djlab/RawData/rhett/VSFP3_' num2str(date) '_2015/VSFP_01A0' num2str(date) ...
     '-' num2str(file) '.rsm'];
+
 fid = fopen(path,'r','n');
 fdata = fread(fid,'int16');
 fdata = reshape(fdata, 128, 100);
@@ -24,11 +26,13 @@ fdata = fdata(21:120,:);
 
 % Plot figure 
 fig = figure;
-imagesc(fdata);
+colormap('gray');
+imagesc(fdata');
+
 
 % Select ROI
 rect = getrect(fig);
-close fig
+close all
 
 % Calculate ROI boundaries from rect 
 x1 = floor(rect(1));

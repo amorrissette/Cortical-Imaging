@@ -20,16 +20,9 @@ function [cmosData, AnaIn1, AnaIn2, StmTrg, fpath] = readCMOS6(fileName)
 %           present
 %
 
-%% Read file-list from .rsh file
+%% Read file-list from .rsh file (all of this now performed with find_vsfp.m - AEM 9/2/15)
 % Find the path of .rsh (head file)
-% [fileName,pathName] = uigetfile('*.rsh','Select the rsh file');
-pathName = '/Volumes/djlab/RawData/rhett/VSFP_19_2015/';
-% pathName = '/Users/AMmacbookpro/Documents/MATLAB/';
-fpath = [pathName fileName];
-% Read the file
-fid=fopen(fpath,'r','b');        
-fstr=fread(fid,'int8=>char')';  
-fclose(fid);
+[fpath, fstr, pathName] = find_vsfp(fileName);
 
 % locate the Data-File-List
 Dindex = find(fstr == 'D');
