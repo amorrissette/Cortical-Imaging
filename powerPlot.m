@@ -43,9 +43,9 @@ for n = 1:numBands
     [X,Y] = find(Xre == max(max(Xfilt)));
     
 	band.([bandNames{n} '_power']) = Xfilt;
-    %figure, hold on, axis off, imagesc(band.([bandNames{n} '_power'])), plot(Y,X,'o')
+    figure, hold on, axis off, imagesc(band.([bandNames{n} '_power'])), plot(Y,X,'o')
     
-    %title(bandNames{n});
+    title(bandNames{n});
 end
 
 out = band;

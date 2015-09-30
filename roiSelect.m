@@ -16,8 +16,8 @@ function region = roiSelect(date, file)
 close all
 
 % Open the .rsm file associated with the VSFP data file, reshape, and crop
-path = ['/Volumes/djlab/RawData/rhett/VSFP_' num2str(date) '_2015/VSFP_01A0' num2str(date) ...
-    '-0' num2str(file) '.rsm'];
+path = ['/Volumes/PC_MAC/DJlab/vsfp_imaging/VSFP_' num2str(date) '_2015/VSFP_01A0' num2str(date) ...
+    '-' num2str(file) '.rsm'];
 
 fid = fopen(path,'r','n');
 fdata = fread(fid,'int16');
