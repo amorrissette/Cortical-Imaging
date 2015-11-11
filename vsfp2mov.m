@@ -8,7 +8,7 @@ function vsfp2mov(vsfp_data)
 %
 
 close all
-region = roiSelect(916,140);
+region = roiSelect(713,227);
 z = size(vsfp_data,3);
 %vsfp_data = spatialAvg(vsfp_data,3);
 % vsfp_roi = zeros(100,100,z);

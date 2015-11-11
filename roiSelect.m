@@ -2,7 +2,7 @@ function region = roiSelect(date, file)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-%   Loads b/w base image from trial and allows user to draw ROI over image
+%   Loads b&w base image from trial and allows user to draw ROI over image
 %   for further analysis
 %
 %   Usage region = roiSelect(date, file);
@@ -13,7 +13,7 @@ function region = roiSelect(date, file)
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-close all
+%close all
 
 % Open the .rsm file associated with the VSFP data file, reshape, and crop
 path = ['/Volumes/PC_MAC/DJlab/vsfp_imaging/VSFP_' num2str(date) '_2015/VSFP_01A0' num2str(date) ...
@@ -32,7 +32,7 @@ imagesc(fdata');
 
 % Select ROI
 rect = getrect(fig);
-close all
+close(fig)
 
 % Calculate ROI boundaries from rect 
 x1 = floor(rect(1));
@@ -41,9 +41,18 @@ y1 = floor(rect(2));
 y2 = y1 + round(rect(4));
 
 
+% For single click case create 5x5 square
+% if x1 == x2 && y1 == y2
+%     x3 = x1-2;
+%     x4 = x2+2;
+%     y3 = y1-2;
+%     y4 = y2+2;
+% 
+%     region = [x3,x4,y3,y4];
+% else
 % Output ROI to variable region
-region = [x1,x2,y1,y2];
+    region = [x1,x2,y1,y2];
 
-end
+% end
 
 

@@ -59,7 +59,7 @@ FsImg = 200;
 
 % Calculate standard deviations of Acceptor and Donor channels 
 hemfilter = make_ChebII_filter(1, FsImg, [10 15], [10*0.9 15*1.1], 20);
-% myfilter1 = make_ChebII_filter(2, FsImg, 50, 55, 20);
+myfilter1 = make_ChebII_filter(3, FsImg, 8, 8*0.9, 20);
 % specfilter = make_ChebII_filter(3, FsImg, 1, 1*0.9, 20);
 % Preallocate for speed :)
 imgAhem = ones(10000,numFrames);
@@ -77,7 +77,7 @@ imgDhem = ones(10000,numFrames);
 % imgDivDemean = ones(10000,numFrames);
 % imgDivDetrend =  ones(10000,numFrames);
 % imgDivFilt = ones(10000,numFrames);
-% imgDR = ones(10000,numFrames);
+imgDR = ones(10000,numFrames);
 % af0 = ones(10000);
 % df0 = ones(10000);
 % imgAf = ones(10000,numFrames);
@@ -89,6 +89,9 @@ imgDhem = ones(10000,numFrames);
 % avgDf = ones(10000);
 % imgDiffA = ones(10000,numFrames);
 % imgDiffD = ones(10000,numFrames);
+imgVoltFilt = ones(sXY, numFrames);
+imgHem = ones(sXY,numFrames);
+imgVolt = ones(sXY,numFrames);
 % i = 0;
 % figure, hold on
 % progbar = waitbar(0, 'Processing Images...');
@@ -96,8 +99,24 @@ imgDhem = ones(10000,numFrames);
 %% First perform operations outside of cycle:
 
 % Averages of baseline VSFP recordings--first 200 frames (1sec) of data
-avgAf = mean(imgA2d(1:10000,1:avgingFr),2);
-avgDf = mean(imgD2d(1:10000,1:avgingFr),2);
+%avgAf = mean(imgA2d(1:10000,1:avgingFr),2);
+%avgDf = mean(imgD2d(1:10000,1:avgingFr),2);
+
+% Add 500 for normalization correction        
+imgA2d = imgA2d + 500;
+imgD2d = imgD2d + 500;
+
+% Normalize to deltaF/F0
+af0 = mean2(imgA2d(:,1:50));
+imgAf = imgA2d.*(100./af0);
+%     imgAf(x,y,:) = ((imgA(x,y,:)) - af0(x,y))./af0(x,y); 
+df0 = mean2(imgD2d(:,1:50));
+imgDf = imgD2d.*(100./df0);
+%     imgDf(x,y,:) = ((imgD(x,y,:)) - df0(x,y))./df0(x,y);
+        
+% Averages of baseline VSFP recordings--first 200 frames (1sec) of data
+avgAf = mean(imgAf(1:10000,1:avgingFr),2);
+avgDf = mean(imgDf(1:10000,1:avgingFr),2);
 
 % Determine presence of stimulation
 slope = diff(squeeze(imgD(50,50,:)));
@@ -113,11 +132,11 @@ else
 end
 
 %% Cycle through each pixel (100 x 100 window) *This is slow! - remove in future versions*
-if strcmp(method,'eql') == 1 
+if strcmp(method,'eql')||strcmp(method,'both') == 1 
     for xy = 1:sXY
 % filter for hemodynamic signal (12-14 hz)
-        imgAhem(xy,:) = filtfilt(hemfilter.numer, hemfilter.denom,imgA(xy,:));
-        imgDhem(xy,:) = filtfilt(hemfilter.numer, hemfilter.denom,imgD(xy,:));
+        imgAhem(xy,:) = filtfilt(hemfilter.numer, hemfilter.denom,imgA2d(xy,:));
+        imgDhem(xy,:) = filtfilt(hemfilter.numer, hemfilter.denom,imgD2d(xy,:));
     end 
 
 % Standard deviation of filtered signal   
@@ -146,7 +165,7 @@ if strcmp(method,'eql') == 1
     avgDiv = avgDe ./ avgAe;          
     imgDR = bsxfun(@times,imgDiv,avgDiv)-1;
 
-elseif strcmp(method,'pca') == 1
+elseif strcmp(method,'pca')||strcmp(method,'both') == 1
 %% Run PCA 
     imgD1d = reshape(imgD1,[sX*sY*sZ,1]);
     imgA1d = reshape(imgA1,[sX*sY*sZ,1]);
@@ -155,9 +174,10 @@ elseif strcmp(method,'pca') == 1
     [~,score,~] = pca(imgTotal,'NumComponents', 2);  
     imgHem = reshape(score(:,1),[sX,sY,sZ]);
     imgVolt = reshape(score(:,2),[sX,sY,sZ]);
-    
+    imgVolt2d = reshape(score(:,2),[sXY,sZ]);
 end
-% for xy = 1:sXY
+
+for xy = 1:sXY
 % %% Detrend and Filter Image Data 
 % 
 %         imgDivDemean(xy,:) = detrend(imgDR(xy,:),'constant');
@@ -167,13 +187,13 @@ end
 % %         imgDivMax(x,y) = max(squeeze(imgDivDetrend(x,y,:)));
 % %         imgDivNorm(x,y,:) = squeeze(imgDivDetrend(x,y,:))./imgDivMax(x,y);
 %         
-% % Low-pass filter (should be 50 and 70)
-% 
-%     imgDivFilt(xy,:) = filtfilt(myfilter1.numer, myfilter1.denom, imgDivDetrend(xy,:));
-% 
+%Low-pass filter (should be 50 and 70)
+
+    imgVoltFilt(xy,:) = filtfilt(myfilter1.numer, myfilter1.denom, imgVolt2d(xy,:));
+
 % % Filter for Spectrogram (bandpass from 2Hz to 40Hz)
 %     imgSpecFilt(xy,:) = filtfilt(specfilter.numer, specfilter.denom, imgDivDetrend(xy,:));     
-% end
+end
 
 %% Calculate ROI based on presence of hemodynamic signals
 % clear i
@@ -216,7 +236,8 @@ imgs.fNum = fNum;
 imgs.imgHem = imgHem;
 imgs.imgVolt = imgVolt;
 imgs.slope = slope;
-
+imgs.imgDR = imgDR;
+imgs.imgVoltFilt = reshape(imgVoltFilt,[sX,sY,sZ]);
 toc
 
 
