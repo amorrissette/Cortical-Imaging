@@ -1,4 +1,4 @@
-function [cmosData, AnaIn1, AnaIn2, StmTrg, fpath] = readCMOS6(fileName)
+function [cmosData, AnaIn1, AnaIn2, StmTrg, fpath] = readCMOS6(fileName,mouseID)
 % purpose: Import CMOS files from the MiCAM Ultima-L system
 % input: 
 % 
@@ -22,7 +22,7 @@ function [cmosData, AnaIn1, AnaIn2, StmTrg, fpath] = readCMOS6(fileName)
 
 %% Read file-list from .rsh file (all of this now performed with find_vsfp.m - AEM 9/2/15)
 % Find the path of .rsh (head file)
-[fpath, fstr, pathName] = find_vsfp(fileName);
+[fpath, fstr, pathName] = find_vsfp(fileName,mouseID);
 
 % locate the Data-File-List
 Dindex = find(fstr == 'D');
