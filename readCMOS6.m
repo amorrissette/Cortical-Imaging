@@ -1,4 +1,4 @@
-function [cmosData, AnaIn1, AnaIn2, StmTrg, fpath] = readCMOS6(fileName,mouseID)
+function [cmosData, AnaIn1, AnaIn2, ExcessData, pathName, StmTrg, fpath, acqMethod, Fs] = readCMOS6(fileName, mouseID)
 % purpose: Import CMOS files from the MiCAM Ultima-L system
 % input: 
 % 
@@ -22,7 +22,7 @@ function [cmosData, AnaIn1, AnaIn2, StmTrg, fpath] = readCMOS6(fileName,mouseID)
 
 %% Read file-list from .rsh file (all of this now performed with find_vsfp.m - AEM 9/2/15)
 % Find the path of .rsh (head file)
-[fpath, fstr, pathName] = find_vsfp(fileName,mouseID);
+[fpath, fstr, pathName] = find_vsfp(fileName, mouseID);
 
 % locate the Data-File-List
 Dindex = find(fstr == 'D');
@@ -65,6 +65,7 @@ for i = 1:num-1
     fpath = [pathName dataPaths{i+1}];
     fid=fopen(fpath,'r','l');        % use big-endian format
     fdata=fread(fid,'int16')';
+
     fclose(fid);
     fdata = reshape(fdata,12800,256);
     if i == 1
@@ -73,8 +74,11 @@ for i = 1:num-1
     for j = 1:size(fdata,2)
         % retrieve the Image Data in the variable cmosData
         oneframe = fdata(:,j);  % one frame at certain time point
+
         oneframe = reshape(oneframe,128,100);
         oneframe = oneframe(21:120,:);
+        
+
         cmosData(:,:,j+(i-1)*256) = -oneframe';
         
         % retrieve the Analog and other signals in the variable ExcessData
@@ -98,3 +102,6 @@ end
  AnaIn1 = reshape(squeeze(ExcessData(1:4:80, 13, :)), 20*((num-1)*256), 1);
  AnaIn2 = reshape(squeeze(ExcessData(1:4:80, 15, :)), 20*((num-1)*256), 1);
  StmTrg = reshape(squeeze(ExcessData(1:4:80,  9, :)), 20*((num-1)*256), 1);
+ acqMethod = fstr(213:216);
+ Sampling = fstr(190:194);
+ Fs = 1/(str2double(Sampling)/1000);
