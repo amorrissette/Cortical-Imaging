@@ -1,0 +1,305 @@
+function out = preProcVSFPlight(opne, ~) 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% Preprocessing for VSFP imaging data (Dual Camera Acquisition) 
+% 
+% Usage:
+%   out = preProcVSFP(fDate, fNum, avgGain)
+% where: avgGain = 0 or 1 (calculate gain factors from trial avg)
+%
+% 7/16/2015 - Much faster Version 2.0
+% 9/02/2015 - Included "method" for specifiying method of removing HR
+% artifact & "stimTrial" specification for removing stim artifact when
+% performing PCA
+% 10/26/2015 - Script overhaul and simplification, includes option to 
+% generate equalization gain factor from trial averages (per conv with T. Knopfel)
+% 12/09/2015 - Added compatibility for DIF acquired images through ultima
+% dual camera system (critical for ratiometric equalization)
+% 05/13/2016 - When SAVE is turned on (by setting save equal to 1 in bottom
+% of the script), preprocessed output will be saved as 'VSFP_Output_
+% 07/18/2016 - Modified stim removal function to rescale stimulus shifted signal
+% by comparing STD of Hemodynamic signals pre and during stimulation
+%
+%
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% file prefix
+fpre = 'VSFP';
+
+% Convert inputs if needed
+fStr = num2str(fNum);
+
+if length(fStr) == 2
+    fStr = ['0' fStr];
+elseif length(fStr) < 2
+    fStr = ['00' fStr];
+end 
+
+disp(['Processing file ' (fStr) ' ...'])
+
+% Load image filesExcessData, pathName, StmTrg, fpath
+[imgA, ~, ~, ~, pathName] = readCMOS6([fpre '_01A' num2str(fDate) '-' fStr '_B.rsh'], mouseID);
+[imgD] = readCMOS6([fpre '_01A' num2str(fDate) '-' fStr '_A.rsh'],mouseID);
+
+imgA1 = imgA;
+imgD1 = imgD;
+
+%% Check image acquisition method (CDF vs DIF)
+
+if imgA(50,50,1) < 1000
+    DIF = 1;
+    disp('DIF used to acquire images! Recalculating with base fluoresence...')
+
+% for image A    
+    pathA = [pathName fpre '_01A' num2str(fDate) '-' fStr 'A.rsm'];
+    fidA = fopen(pathA,'r','n');
+    fdataA = fread(fidA,'int16');
+    fdataA = reshape(fdataA,128,100);
+    baseA = fdataA(21:120,:)';
+    imgA = bsxfun(@plus,imgA,baseA);
+    baseAre = reshape(baseA,[100,100]);
+
+% for image D    
+    pathD = [pathName fpre '_01A' num2str(fDate) '-' fStr 'B.rsm'];
+    fidD = fopen(pathD,'r','n');
+    fdataD = fread(fidD,'int16');
+    fdataD = reshape(fdataD,128,100);
+    baseD = fdataD(21:120,:)';
+    imgD = bsxfun(@plus,imgD,baseD);
+    baseDre = reshape(baseD,[100,100]);
+    disp('done!')
+else
+    DIF = 0;
+end
+
+
+
+% Create Mask of Pixels 
+mask = zeros(10000,1);
+aRe = reshape(imgA(:,:,1),[10000,1]);
+mask((aRe > 1500)) = 1;
+mask = reshape(mask,[100,100]);
+
+% Dimensions of the loaded files?
+if isequal(size(imgD),size(imgA)) == 1
+    [sX, sY, sZ] = size(imgD);
+    sXY = sX*sY;
+else
+    error('Donor and Acceptor Files must be the same size')
+end
+
+% How many frames are in each sequence (for me usually 2048)
+numFrames = sZ;
+
+% Time array (sampling at 5 msec = 0.005 sec)
+FsImg = 200; % Sampling Rate (Hz)
+time = (1:numFrames).*(1/FsImg); % array in seconds
+
+% Select ROI encompassing entire brain FOV and create masks
+% !This is old from version before but may get added back in future
+% version...
+if exist('region','var') ~= 1 && exist('PCA','var') == 1
+    region = roiSelect(fDate, fStr);
+else
+    region = [1 100 1 100];
+end
+
+
+physMask = zeros(sX,sY,sZ);
+physMask(region(3):region(4),region(1):region(2),:) = 1;
+
+Dphys = imgD.*physMask;
+Aphys = imgA.*physMask;
+
+
+% Number of frames to use for baseline average -- typically first 200 frames (1sec) of data
+avgingFr = 20;
+
+% Create stucture for output and version control
+out = struct('fileNum',[num2str(fDate) '-' num2str(fNum)],'version','v3.0','date',date);
+
+%% Equalized Ratio to correct for wavelength-dependent loght absorption by hemoglobin
+% Calculate standard deviations of Acceptor and Donor channels 
+
+% Can modify filter settings for optimal HR subtraction
+HRwin = HRfilter(imgD,fDate,fStr,FsImg);
+disp(['Hemodynamic range at ' num2str(HRwin(1)) ' and ' num2str(HRwin(2)) ' ...'])
+HRpeak = HRwin(2)-((HRwin(2)-HRwin(1))/2);
+disp(['Hemodynamic peak at ' num2str(HRpeak) ' ...'])
+disp(['Filtering between ' num2str(HRwin(1)) ' and ' num2str(HRwin(2)) ' ...'])
+hemfilter = make_ChebII_filter(1, FsImg, HRwin, [HRwin(1)*0.9 HRwin(2)*1.1], 20);
+
+% Preallocate couple variables for speed :)
+Ahem2d = ones(sXY,numFrames);
+Dhem2d = ones(sXY,numFrames);
+
+
+
+%% First perform operations outside of cycle:
+        
+% Determine if presence of optogenetic stimulation
+[imgA1,imgD1,I] = stimCheck(imgD,Aphys,Dphys,sX,sY);
+
+Dphys2d = reshape(imgD1, [sXY, sZ]);
+Aphys2d = reshape(imgA1, [sXY, sZ]);
+stdA2 = std(Aphys2d(:,:),0,2);
+stdD2 = std(Dphys2d(:,:),0,2);  
+ 
+
+% Averages of baseline VSFP recordings
+Aavg = mean(Aphys2d(1:sXY,1:avgingFr),2);
+Davg = mean(Dphys2d(1:sXY,1:avgingFr),2);
+
+%% Cycle through each pixel (100 x 100 window) *This is slow! - remove in future versions*
+for xy = 1:sXY
+    
+% filter for hemodynamic signal (12-14 hz)
+    Ahem2d(xy,:) = filtfilt(hemfilter.numer, hemfilter.denom,Aphys2d(xy,:));
+    Dhem2d(xy,:) = filtfilt(hemfilter.numer, hemfilter.denom,Dphys2d(xy,:));
+end 
+
+% Standard deviation of filtered signal   
+stdA = std(Ahem2d(:,:),0,2);
+stdD = std(Dhem2d(:,:),0,2);  
+
+
+% gamma and delta values for each pixel    
+
+    gamma = 0.5*(1+((Aavg.*stdD)./(Davg.*stdA)));
+    delta = 0.5*(1+((Davg.*stdA)./(Aavg.*stdD)));
+
+
+% Calculate equalized A and D data
+imgDiffA = bsxfun(@minus,Aphys2d,Aavg);
+imgDiffD = bsxfun(@minus,Dphys2d,Davg);
+
+Aeql = bsxfun(@plus,bsxfun(@times,gamma,imgDiffA),Aavg);
+Deql = bsxfun(@plus,bsxfun(@times,delta,imgDiffD),Davg);
+
+% Calculate new baseline values for equalized frames
+avgAe = mean(Aeql(:,1:avgingFr),2);
+avgDe = mean(Deql(:,1:avgingFr),2);        
+        
+% and gain-corrected rationmetric signal
+imgDiv = Aeql ./ Deql;
+avgDiv = avgDe ./ avgAe;          
+imgDR = bsxfun(@times,imgDiv,avgDiv)-1;
+
+%% Output Variables and Save
+
+out.imgD = imgD;
+out.imgA = imgA;
+
+out.imgDR2 = reshape(imgDR,[sX,sY,sZ]);
+out.imgDR = reshape(bsxfun(@minus,imgDR(:,:),imgDR(:,1)),[sX,sY,sZ]);
+
+end
+
+
+
+function [imgA1,imgD1,I] = stimCheck(imgD,Aphys,Dphys,sX,sY)
+% Interpolate Line from start of artifact to end and remove
+
+slope = diff(squeeze(imgD(50,50,:)));
+I = find(abs(slope)>8*std(slope));
+if length(I) >= 2
+    I(1) = I(1);
+    I(2) = I(1)+400;
+    disp('Stimulation trial detected...')
+    imgA1 = Aphys;
+    imgD1 = Dphys;
+    i(1) = I(1)+2;
+    i(2) = I(2)-2;
+    I(1) = I(1)-3;
+    I(2) = I(2)+3;
+    Ai3D = bsxfun(@minus,imgA1(:,:,i(1):i(2)),imgA1(:,:,i(1)));
+    Di3D = bsxfun(@minus,imgD1(:,:,i(1):i(2)),imgD1(:,:,i(1)));
+    
+    slopeA = ((imgA1(:,:,I(2))-imgA1(:,:,I(1)))./length(I(1):I(2)));
+    slopeD = ((imgD1(:,:,I(2))-imgD1(:,:,I(1)))./length(I(1):I(2)));
+    slopeA2 = ((imgA1(:,:,i(2))-imgA1(:,:,i(1)))./length(i(1):i(2)));
+    slopeD2 = ((imgD1(:,:,i(2))-imgD1(:,:,i(1)))./length(i(1):i(2)));
+    time2 = ones(sX,sY,length(i(1):i(2)));
+
+    time = ones(sX,sY,length(I(1):I(2)));
+    for n = 1:length(I(1):I(2))
+        time(:,:,n) = ones(sX,sY)*(n-1);
+    end
+    for n2 = 1:length(i(1):i(2))
+        time2(:,:,n2) = ones(sX,sY)*(n2-1);
+    end
+
+    sxtA = bsxfun(@times,slopeA,time);
+    sxtD = bsxfun(@times,slopeD,time);
+    sxtA2 = bsxfun(@times,slopeA2,time2);
+    sxtD2 = bsxfun(@times,slopeD2,time2);
+    
+    Di = bsxfun(@minus, Di3D, sxtD2);
+    Ai = bsxfun(@minus, Ai3D, sxtA2);
+    
+    imgA1(:,:,I(1):I(2)) = bsxfun(@plus, sxtA, imgA1(:,:,I(1)));
+    imgD1(:,:,I(1):I(2)) = bsxfun(@plus, sxtD, imgD1(:,:,I(1)));
+    imgA1(:,:,i(1):i(2)) = bsxfun(@plus, Ai, imgA1(:,:,i(1):i(2)));
+    imgD1(:,:,i(1):i(2)) = bsxfun(@plus, Di, imgD1(:,:,i(1):i(2)));
+    
+else
+    imgA1 = Aphys;
+    imgD1 = Dphys;
+end
+
+end
+
+function [imgA, imgD] = getTestData
+
+I = ones(100,100);
+H = fspecial('gaussian',[100,100],50);
+blurred = imfilter(I,H);
+temp1 = ones(100,100,1024);
+temp2 = ones(100,100,1024);
+
+win1 = [gausswin(100);zeros(1024-100,1)];
+win2 = [-gausswin(100);zeros(1024-100,1)];
+win3 = [gausswin(50);zeros(1024-50,1)];
+win4 = [-gausswin(50);zeros(1024-50,1)];
+win5 = gausswin(1024);
+win6 = -gausswin(1024);
+
+size(win1)
+blur3D = bsxfun(@times,ones(100,100,1024),blurred);
+
+for x = 1:100
+    for y = 1:100
+        if x > 20 && x < 40
+            if y > 20 && y < 40
+                temp1(x,y,:) = squeeze(blur3D(x,y,:))+win1+win5;
+                temp2(x,y,:) = squeeze(blur3D(x,y,:))+win2+win6-win4;
+            else
+                temp1(x,y,:) = squeeze(blur3D(x,y,:))+win5;
+                temp2(x,y,:) = squeeze(blur3D(x,y,:))+win6;
+            end
+        else 
+            temp1(x,y,:) = squeeze(blur3D(x,y,:))+win5;
+            temp2(x,y,:) = squeeze(blur3D(x,y,:))+win6;
+        end
+    end
+end
+
+imgA = bsxfun(@times,temp1,ones(100,100)*8000);
+imgD = bsxfun(@times,temp1,ones(100,100)*5000);
+imgDR = bsxfun(@rdivide,imgA,imgD);
+
+for X = 1:1024
+    subplot(1,2,1),imagesc(imgA(:,:,X)),caxis([0,10000])
+    subplot(1,2,2),imagesc(imgD(:,:,X)),caxis([0,5000])
+    pause(0.01)
+end
+
+
+for X = 1:1024
+    imagesc(imgDR(:,:,X))
+    pause(0.01)
+end
+
+end

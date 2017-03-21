@@ -1,0 +1,1 @@
+function artifactAnalysis(inputData)

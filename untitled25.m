@@ -6,9 +6,9 @@ files = [856:905];
 % Peter sweeps
 files = fTypes(s1',3)'; % Catch
 files = fTypes(s2',3)'; % single pulse at 1 sec
-files = fTypes(s3',3); % 
-files = fTypes(s4',3);
-files = fTypes(s5',3);
+files = fTypes(s3',3)'; % 
+files = fTypes(s4',3)';
+files = fTypes(s5',3)';
 files = fTypes(s6',3)'; % Ramp and Hold?
 
 
