@@ -1,4 +1,4 @@
-function region = roiSelect(date, file)
+function region = roiSelect(date, file, mouseID)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -14,11 +14,14 @@ function region = roiSelect(date, file)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %close all
-
+fpre = 'VSFP';
 % Open the .rsm file associated with the VSFP data file, reshape, and crop
-path = ['/Volumes/PC_MAC/DJlab/vsfp_imaging/VSFP_' num2str(date) '_2015/VSFP_01A0' num2str(date) ...
-    '-' num2str(file) '.rsm'];
-
+[fpre '_01A' num2str(date) '-' file '_B.rsh']
+[fpath, fstr, pathName] = find_vsfp([fpre '_01A' num2str(date) '-' file '_B.rsh'],mouseID);
+pathName
+path = [pathName fpre '_01A' num2str(date) ...
+    '-' (file) 'B.rsm'];
+path
 fid = fopen(path,'r','n');
 fdata = fread(fid,'int16');
 fdata = reshape(fdata, 128, 100);
